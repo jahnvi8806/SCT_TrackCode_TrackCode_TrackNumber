@@ -5,7 +5,14 @@ import numpy as np
 from PIL import Image
 
 # Load trained model
-model = joblib.load("svm_cats_dogs_model.joblib")
+import os
+
+MODEL_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "svm_cats_dogs_model.joblib"
+)
+
+model = joblib.load(MODEL_PATH)
 
 st.set_page_config(
     page_title="Cats vs Dogs Classifier",
