@@ -4,120 +4,92 @@ import cv2
 import numpy as np
 from PIL import Image
 
+# Load trained model
+model = joblib.load("svm_cats_dogs_model.joblib")
+
 st.set_page_config(
-    page_title="AI Pet Classifier",
+    page_title="Cats vs Dogs Classifier",
     page_icon="🐶",
-    layout="wide"
+    layout="centered"
 )
 
-# CSS
-st.markdown("""
-<style>
-.main{
-    background-color:#0E1117;
-}
-.hero{
-    background:linear-gradient(135deg,#6C63FF,#3B82F6);
-    padding:30px;
-    border-radius:20px;
-    text-align:center;
-    color:white;
-}
-.result{
-    padding:20px;
-    border-radius:15px;
-    text-align:center;
-    font-size:28px;
-    font-weight:bold;
-}
-</style>
-""", unsafe_allow_html=True)
+st.title("🐱🐶 Cats vs Dogs Classifier")
+st.write("Upload an image and let the SVM model predict.")
 
-# Header
-st.markdown("""
-<div class='hero'>
-<h1>🐱🐶 AI Cats vs Dogs Classifier</h1>
-<h4>Machine Learning Powered Image Recognition</h4>
-</div>
-""", unsafe_allow_html=True)
+# -----------------------------
+# Feature Extraction
+# -----------------------------
+def extract_features_from_image(image):
+    img = np.array(image)
 
-st.write("")
+    # RGB -> BGR
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-# Sidebar
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/616/616408.png", width=120)
-    st.title("Model Info")
-    st.success("Algorithm: SVM")
-    st.info("Feature Extraction: PCA")
-    st.warning("Binary Classification")
+    # Same preprocessing as training
+    img = cv2.resize(img, (64, 64))
 
-# Layout
-col1, col2 = st.columns([1.3,1])
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
+    pixel_features = gray.flatten()
 
-with col1:
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    uploaded_file = st.file_uploader(
-        "📤 Upload Cat/Dog Image",
-        type=["jpg","jpeg","png"]
+    hist_h = cv2.calcHist([hsv], [0], None, [32], [0, 180]).flatten()
+    hist_s = cv2.calcHist([hsv], [1], None, [32], [0, 256]).flatten()
+    hist_v = cv2.calcHist([hsv], [2], None, [32], [0, 256]).flatten()
+
+    color_features = np.concatenate([hist_h, hist_s, hist_v])
+    color_features = color_features / (color_features.sum() + 1e-7)
+
+    features = np.concatenate([pixel_features, color_features])
+
+    return features.astype(np.float32)
+
+# -----------------------------
+# Upload
+# -----------------------------
+uploaded_file = st.file_uploader(
+    "Upload Cat/Dog Image",
+    type=["jpg", "jpeg", "png"]
+)
+
+if uploaded_file is not None:
+
+    image = Image.open(uploaded_file).convert("RGB")
+
+    st.image(
+        image,
+        caption="Uploaded Image",
+        use_container_width=True
     )
 
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        st.image(image, use_container_width=True)
+    if st.button("Predict"):
 
-with col2:
+        features = extract_features_from_image(image)
 
-    st.subheader("📊 Prediction Dashboard")
+        prediction = model.predict([features])[0]
+        probabilities = model.predict_proba([features])[0]
 
-    if uploaded_file:
+        cat_prob = float(probabilities[0])
+        dog_prob = float(probabilities[1])
 
-        if st.button("🚀 Analyze Image"):
-
-            # Dummy Output
+        if prediction == 0:
+            label = "🐱 Cat"
+            confidence = cat_prob
+        else:
             label = "🐶 Dog"
-            confidence = 82
+            confidence = dog_prob
 
-            st.markdown(
-                f"<div class='result'>{label}</div>",
-                unsafe_allow_html=True
-            )
+        st.success(f"Prediction: {label}")
 
-            st.progress(confidence)
+        st.metric(
+            "Confidence",
+            f"{confidence * 100:.2f}%"
+        )
 
-            st.metric(
-                label="Confidence",
-                value=f"{confidence}%"
-            )
+        st.write("### Probability")
 
-            st.subheader("Probability")
+        st.write(f"🐱 Cat: {cat_prob * 100:.2f}%")
+        st.progress(int(cat_prob * 100))
 
-            st.write("🐱 Cat")
-            st.progress(18)
-
-            st.write("🐶 Dog")
-            st.progress(82)
-
-            if confidence > 80:
-                st.success("High Confidence Prediction")
-            elif confidence > 60:
-                st.warning("Moderate Confidence Prediction")
-            else:
-                st.error("Low Confidence Prediction")
-
-st.divider()
-
-c1,c2,c3 = st.columns(3)
-
-c1.metric("Classes", "2")
-c2.metric("Model", "SVM")
-c3.metric("Feature Size", "64x64")
-
-st.markdown(
-"""
----
-<center>
-Made with ❤️ using Streamlit | SkillCraft Technology Internship
-</center>
-""",
-unsafe_allow_html=True
-)
+        st.write(f"🐶 Dog: {dog_prob * 100:.2f}%")
+        st.progress(int(dog_prob * 100))
