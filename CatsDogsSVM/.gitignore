@@ -3,5 +3,4 @@ dogs-vs-cats/
 data/
 uploads/
 results/
-*.joblib
 __pycache__/
